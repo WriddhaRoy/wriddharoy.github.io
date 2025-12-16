@@ -1,0 +1,269 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Admin Dashboard">
+  <div id="app"></div>
+</Layout>
+
+<script>
+  import { GitHubAPI } from '../lib/github';
+
+  // State management
+  let isAuthenticated = false;
+  let githubAPI: GitHubAPI | null = null;
+  let isLoading = false;
+
+  // DOM elements will be created dynamically
+  const app = document.getElementById('app')!;
+
+  // Check if already authenticated
+  function checkAuth() {
+    const token = sessionStorage.getItem('github_token');
+    const owner = sessionStorage.getItem('github_owner');
+    const repo = sessionStorage.getItem('github_repo');
+
+    if (token && owner && repo) {
+      githubAPI = new GitHubAPI(token, owner, repo);
+      githubAPI.verifyToken().then((valid) => {
+        if (valid) {
+          isAuthenticated = true;
+          render();
+        } else {
+          sessionStorage.clear();
+          render();
+        }
+      });
+    } else {
+      render();
+    }
+  }
+
+  // Login handler
+  async function handleLogin(e: Event) {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+    
+    const token = formData.get('token') as string;
+    const owner = formData.get('owner') as string;
+    const repo = formData.get('repo') as string;
+
+    if (!token || !owner || !repo) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    isLoading = true;
+    render();
+
+    githubAPI = new GitHubAPI(token, owner, repo);
+    const valid = await githubAPI.verifyToken();
+
+    if (valid) {
+      sessionStorage.setItem('github_token', token);
+      sessionStorage.setItem('github_owner', owner);
+      sessionStorage.setItem('github_repo', repo);
+      isAuthenticated = true;
+    } else {
+      alert('Invalid credentials. Please check your token and repository details.');
+      githubAPI = null;
+    }
+
+    isLoading = false;
+    render();
+  }
+
+  // Logout handler
+  function handleLogout() {
+    sessionStorage.clear();
+    isAuthenticated = false;
+    githubAPI = null;
+    render();
+  }
+
+  // Publish handler
+  async function handlePublish(e: Event) {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+
+    const title = formData.get('title') as string;
+    const description = formData.get('description') as string;
+    const content = formData.get('content') as string;
+
+    if (!title || !description || !content) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    if (!githubAPI) {
+      alert('Not authenticated');
+      return;
+    }
+
+    isLoading = true;
+    render();
+
+    try {
+      const date = new Date().toISOString().split('T')[0];
+      await githubAPI.createBlogPost({
+        title,
+        date,
+        description,
+        content,
+      });
+
+      alert('Post published successfully! It will appear after GitHub Actions rebuilds the site.');
+      form.reset();
+    } catch (error) {
+      alert('Error publishing post: ' + (error as Error).message);
+    }
+
+    isLoading = false;
+    render();
+  }
+
+  // Render login form
+  function renderLogin() {
+    return `
+      <div class="max-w-md mx-auto">
+        <h1 class="text-3xl font-bold mb-8">Admin Login</h1>
+        <form id="login-form" class="space-y-6">
+          <div>
+            <label class="block text-sm font-medium mb-2">GitHub Personal Access Token</label>
+            <input
+              type="password"
+              name="token"
+              required
+              class="w-full px-4 py-2 border border-black/20 rounded focus:outline-none focus:ring-2 focus:ring-black/20"
+              placeholder="ghp_xxxxxxxxxxxx"
+            />
+            <p class="text-xs text-black/50 mt-1">
+              Create a token with 'repo' scope at 
+              <a href="https://github.com/settings/tokens" target="_blank" class="underline">
+                github.com/settings/tokens
+              </a>
+            </p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-2">Repository Owner</label>
+            <input
+              type="text"
+              name="owner"
+              required
+              class="w-full px-4 py-2 border border-black/20 rounded focus:outline-none focus:ring-2 focus:ring-black/20"
+              placeholder="yourusername"
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-2">Repository Name</label>
+            <input
+              type="text"
+              name="repo"
+              required
+              class="w-full px-4 py-2 border border-black/20 rounded focus:outline-none focus:ring-2 focus:ring-black/20"
+              placeholder="wriddharoy.com"
+            />
+          </div>
+          <button
+            type="submit"
+            ${isLoading ? 'disabled' : ''}
+            class="w-full bg-black text-white px-6 py-3 rounded hover:opacity-80 transition disabled:opacity-50"
+          >
+            ${isLoading ? 'Verifying...' : 'Login'}
+          </button>
+        </form>
+      </div>
+    `;
+  }
+
+  // Render editor
+  function renderEditor() {
+    return `
+      <div>
+        <div class="flex justify-between items-center mb-8">
+          <h1 class="text-3xl font-bold">Create New Post</h1>
+          <button
+            id="logout-btn"
+            class="text-sm text-black/60 hover:text-black transition"
+          >
+            Logout
+          </button>
+        </div>
+        
+        <form id="publish-form" class="space-y-6">
+          <div>
+            <label class="block text-sm font-medium mb-2">Title</label>
+            <input
+              type="text"
+              name="title"
+              required
+              class="w-full px-4 py-2 border border-black/20 rounded focus:outline-none focus:ring-2 focus:ring-black/20"
+              placeholder="My Awesome Blog Post"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium mb-2">Description</label>
+            <input
+              type="text"
+              name="description"
+              required
+              class="w-full px-4 py-2 border border-black/20 rounded focus:outline-none focus:ring-2 focus:ring-black/20"
+              placeholder="A brief description of your post"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium mb-2">Content (Markdown)</label>
+            <textarea
+              name="content"
+              required
+              rows="20"
+              class="w-full px-4 py-2 border border-black/20 rounded focus:outline-none focus:ring-2 focus:ring-black/20 font-mono text-sm"
+              placeholder="Write your post content here using Markdown..."
+            ></textarea>
+          </div>
+          
+          <button
+            type="submit"
+            ${isLoading ? 'disabled' : ''}
+            class="w-full bg-black text-white px-6 py-3 rounded hover:opacity-80 transition disabled:opacity-50"
+          >
+            ${isLoading ? 'Publishing...' : 'Publish Post'}
+          </button>
+        </form>
+        
+        <div class="mt-8 p-4 bg-black/5 rounded text-sm">
+          <p class="font-medium mb-2">Markdown Tips:</p>
+          <ul class="space-y-1 text-black/70">
+            <li>• Use # for headings (# H1, ## H2, ### H3)</li>
+            <li>• **bold** for bold text, *italic* for italic</li>
+            <li>• [Link text](url) for links</li>
+            <li>• ![Alt text](image-url) for images</li>
+            <li>• \`code\` for inline code, \`\`\` for code blocks</li>
+          </ul>
+        </div>
+      </div>
+    `;
+  }
+
+  // Main render function
+  function render() {
+    if (isAuthenticated) {
+      app.innerHTML = renderEditor();
+      const form = document.getElementById('publish-form');
+      const logoutBtn = document.getElementById('logout-btn');
+      if (form) form.addEventListener('submit', handlePublish);
+      if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    } else {
+      app.innerHTML = renderLogin();
+      const form = document.getElementById('login-form');
+      if (form) form.addEventListener('submit', handleLogin);
+    }
+  }
+
+  // Initialize
+  checkAuth();
+</script>

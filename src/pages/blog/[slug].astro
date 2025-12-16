@@ -1,0 +1,129 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getAllPosts, getPostBySlug, formatDate } from '../../lib/blog';
+
+export async function getStaticPaths() {
+  const posts = getAllPosts();
+  return posts.map((post) => ({
+    params: { slug: post.slug },
+  }));
+}
+
+const { slug } = Astro.params;
+const post = getPostBySlug(slug as string);
+
+if (!post) {
+  return Astro.redirect('/404');
+}
+---
+
+<Layout title={post.title} description={post.description}>
+  <article class="prose-custom">
+    <header class="mb-12 space-y-4">
+      <a href="/" class="text-sm text-black/50 hover:text-black transition">
+        ← Back to posts
+      </a>
+      <time class="block text-sm text-black/50">{formatDate(post.date)}</time>
+      <h1 class="text-4xl md:text-5xl font-bold tracking-tight leading-tight">
+        {post.title}
+      </h1>
+      {post.description && (
+        <p class="text-xl text-black/70">{post.description}</p>
+      )}
+    </header>
+
+    <div class="prose" set:html={post.html} />
+  </article>
+</Layout>
+
+<style>
+  .prose {
+    color: rgba(0, 0, 0, 0.9);
+    line-height: 1.625;
+  }
+
+  .prose :global(h1),
+  .prose :global(h2),
+  .prose :global(h3),
+  .prose :global(h4),
+  .prose :global(h5),
+  .prose :global(h6) {
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: black;
+    margin-top: 3rem;
+    margin-bottom: 1rem;
+  }
+
+  .prose :global(h2) {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+  }
+
+  .prose :global(h3) {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+
+  .prose :global(p) {
+    margin-bottom: 1.5rem;
+  }
+
+  .prose :global(a) {
+    text-decoration: underline;
+    transition: opacity 0.2s;
+  }
+
+  .prose :global(a:hover) {
+    opacity: 0.6;
+  }
+
+  .prose :global(ul),
+  .prose :global(ol) {
+    margin-bottom: 1.5rem;
+    margin-left: 1.5rem;
+  }
+
+  .prose :global(li) {
+    margin-bottom: 0.5rem;
+  }
+
+  .prose :global(blockquote) {
+    border-left: 4px solid rgba(0, 0, 0, 0.2);
+    padding-left: 1.5rem;
+    font-style: italic;
+    margin: 1.5rem 0;
+    color: rgba(0, 0, 0, 0.7);
+  }
+
+  .prose :global(code) {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    font-family: monospace;
+  }
+
+  .prose :global(pre) {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 1rem;
+    border-radius: 0.25rem;
+    overflow-x: auto;
+    margin-bottom: 1.5rem;
+  }
+
+  .prose :global(pre code) {
+    background-color: transparent;
+    padding: 0;
+  }
+
+  .prose :global(img) {
+    border-radius: 0.5rem;
+    margin: 2rem 0;
+  }
+
+  .prose :global(hr) {
+    border-color: rgba(0, 0, 0, 0.1);
+    margin: 3rem 0;
+  }
+</style>
