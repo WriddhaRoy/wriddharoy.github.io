@@ -1,4 +1,4 @@
-# Astro Starter Kit: Minimal
+# Wriddha Roy
 
 ```sh
 npm create astro@latest -- --template minimal
