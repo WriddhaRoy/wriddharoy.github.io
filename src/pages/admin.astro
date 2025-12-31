@@ -7,15 +7,35 @@ import Layout from '../layouts/Layout.astro';
 </Layout>
 
 <script>
-  import { GitHubAPI } from '../lib/github';
+  import { GitHubAPI, type BlogPostFile } from '../lib/github';
 
   // State management
   let isAuthenticated = false;
   let githubAPI: GitHubAPI | null = null;
   let isLoading = false;
+  let posts: BlogPostFile[] = [];
+  let editingPost: BlogPostFile | null = null;
+  let viewMode: 'create' | 'list' = 'list';
 
   // DOM elements will be created dynamically
   const app = document.getElementById('app')!;
+
+  // Load blog posts
+  async function loadPosts() {
+    if (!githubAPI) return;
+    
+    isLoading = true;
+    render();
+    
+    try {
+      posts = await githubAPI.getBlogPosts();
+    } catch (error) {
+      alert('Error loading posts: ' + (error as Error).message);
+    }
+    
+    isLoading = false;
+    render();
+  }
 
   // Check if already authenticated
   function checkAuth() {
@@ -28,7 +48,7 @@ import Layout from '../layouts/Layout.astro';
       githubAPI.verifyToken().then((valid) => {
         if (valid) {
           isAuthenticated = true;
-          render();
+          loadPosts();
         } else {
           sessionStorage.clear();
           render();
@@ -65,6 +85,7 @@ import Layout from '../layouts/Layout.astro';
       sessionStorage.setItem('github_owner', owner);
       sessionStorage.setItem('github_repo', repo);
       isAuthenticated = true;
+      loadPosts();
     } else {
       alert('Invalid credentials. Please check your token and repository details.');
       githubAPI = null;
@@ -82,7 +103,7 @@ import Layout from '../layouts/Layout.astro';
     render();
   }
 
-  // Publish handler
+  // Publish handler (create or update)
   async function handlePublish(e: Event) {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
@@ -106,21 +127,92 @@ import Layout from '../layouts/Layout.astro';
     render();
 
     try {
-      const date = new Date().toISOString().split('T')[0];
-      await githubAPI.createBlogPost({
-        title,
-        date,
-        description,
-        content,
-      });
-
-      alert('Post published successfully! It will appear after GitHub Actions rebuilds the site.');
+      if (editingPost) {
+        // Update existing post
+        await githubAPI.updateBlogPost(
+          editingPost.path,
+          {
+            title,
+            date: editingPost.date, // Keep original date
+            description,
+            content,
+          },
+          editingPost.sha
+        );
+        alert('Post updated successfully! It will appear after GitHub Actions rebuilds the site.');
+      } else {
+        // Create new post
+        const date = new Date().toISOString().split('T')[0];
+        await githubAPI.createBlogPost({
+          title,
+          date,
+          description,
+          content,
+        });
+        alert('Post published successfully! It will appear after GitHub Actions rebuilds the site.');
+      }
+      
       form.reset();
+      editingPost = null;
+      viewMode = 'list';
+      await loadPosts();
     } catch (error) {
-      alert('Error publishing post: ' + (error as Error).message);
+      alert('Error saving post: ' + (error as Error).message);
     }
 
     isLoading = false;
+    render();
+  }
+
+  // Edit handler
+  async function handleEdit(post: BlogPostFile) {
+    editingPost = post;
+    viewMode = 'create';
+    render();
+    
+    // Populate form with post data
+    setTimeout(() => {
+      const form = document.getElementById('publish-form') as HTMLFormElement;
+      if (form) {
+        (form.elements.namedItem('title') as HTMLInputElement).value = post.title;
+        (form.elements.namedItem('description') as HTMLInputElement).value = post.description;
+        (form.elements.namedItem('content') as HTMLTextAreaElement).value = post.content;
+      }
+    }, 0);
+  }
+
+  // Delete handler
+  async function handleDelete(post: BlogPostFile) {
+    if (!confirm(`Are you sure you want to delete "${post.title}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    if (!githubAPI) {
+      alert('Not authenticated');
+      return;
+    }
+
+    isLoading = true;
+    render();
+
+    try {
+      await githubAPI.deleteBlogPost(post.path, post.sha);
+      alert('Post deleted successfully! It will be removed after GitHub Actions rebuilds the site.');
+      await loadPosts();
+    } catch (error) {
+      alert('Error deleting post: ' + (error as Error).message);
+    }
+
+    isLoading = false;
+    render();
+  }
+
+  // Cancel edit handler
+  function handleCancelEdit() {
+    editingPost = null;
+    viewMode = 'list';
+    const form = document.getElementById('publish-form') as HTMLFormElement;
+    if (form) form.reset();
     render();
   }
 
@@ -178,18 +270,85 @@ import Layout from '../layouts/Layout.astro';
     `;
   }
 
+  // Render posts list
+  function renderPostsList() {
+    if (isLoading) {
+      return `
+        <div class="text-center py-12">
+          <p class="text-black/60">Loading posts...</p>
+        </div>
+      `;
+    }
+
+    if (posts.length === 0) {
+      return `
+        <div class="text-center py-12">
+          <p class="text-black/60 mb-4">No blog posts found.</p>
+          <button
+            id="new-post-btn"
+            class="bg-black text-white px-6 py-2 rounded hover:opacity-80 transition"
+          >
+            Create Your First Post
+          </button>
+        </div>
+      `;
+    }
+
+    return `
+      <div class="space-y-4">
+        ${posts.map(post => `
+          <div class="border border-black/20 rounded p-4 hover:bg-black/5 transition">
+            <div class="flex justify-between items-start">
+              <div class="flex-1">
+                <h3 class="font-semibold text-lg mb-1">${post.title}</h3>
+                <p class="text-sm text-black/60 mb-2">${post.description}</p>
+                <p class="text-xs text-black/40">${new Date(post.date).toLocaleDateString()}</p>
+              </div>
+              <div class="flex gap-2 ml-4">
+                <button
+                  class="edit-btn px-4 py-2 bg-black text-white text-sm rounded hover:opacity-80 transition"
+                  data-path="${post.path}"
+                  data-sha="${post.sha}"
+                >
+                  Edit
+                </button>
+                <button
+                  class="delete-btn px-4 py-2 bg-red-600 text-white text-sm rounded hover:opacity-80 transition"
+                  data-path="${post.path}"
+                  data-sha="${post.sha}"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
   // Render editor
   function renderEditor() {
     return `
       <div>
         <div class="flex justify-between items-center mb-8">
-          <h1 class="text-3xl font-bold">Create New Post</h1>
-          <button
-            id="logout-btn"
-            class="text-sm text-black/60 hover:text-black transition"
-          >
-            Logout
-          </button>
+          <h1 class="text-3xl font-bold">${editingPost ? 'Edit Post' : 'Create New Post'}</h1>
+          <div class="flex gap-4 items-center">
+            ${editingPost ? `
+              <button
+                id="cancel-btn"
+                class="text-sm text-black/60 hover:text-black transition"
+              >
+                Cancel
+              </button>
+            ` : ''}
+            <button
+              id="logout-btn"
+              class="text-sm text-black/60 hover:text-black transition"
+            >
+              Logout
+            </button>
+          </div>
         </div>
         
         <form id="publish-form" class="space-y-6">
@@ -226,13 +385,24 @@ import Layout from '../layouts/Layout.astro';
             ></textarea>
           </div>
           
-          <button
-            type="submit"
-            ${isLoading ? 'disabled' : ''}
-            class="w-full bg-black text-white px-6 py-3 rounded hover:opacity-80 transition disabled:opacity-50"
-          >
-            ${isLoading ? 'Publishing...' : 'Publish Post'}
-          </button>
+          <div class="flex gap-4">
+            <button
+              type="submit"
+              ${isLoading ? 'disabled' : ''}
+              class="flex-1 bg-black text-white px-6 py-3 rounded hover:opacity-80 transition disabled:opacity-50"
+            >
+              ${isLoading ? (editingPost ? 'Updating...' : 'Publishing...') : (editingPost ? 'Update Post' : 'Publish Post')}
+            </button>
+            ${editingPost ? `
+              <button
+                type="button"
+                id="cancel-form-btn"
+                class="px-6 py-3 border border-black/20 rounded hover:bg-black/5 transition"
+              >
+                Cancel
+              </button>
+            ` : ''}
+          </div>
         </form>
         
         <div class="mt-8 p-4 bg-black/5 rounded text-sm">
@@ -249,14 +419,80 @@ import Layout from '../layouts/Layout.astro';
     `;
   }
 
+  // Render dashboard
+  function renderDashboard() {
+    return `
+      <div>
+        <div class="flex justify-between items-center mb-8">
+          <h1 class="text-3xl font-bold">Blog Posts</h1>
+          <div class="flex gap-4 items-center">
+            <button
+              id="new-post-btn"
+              class="bg-black text-white px-6 py-2 rounded hover:opacity-80 transition"
+            >
+              New Post
+            </button>
+            <button
+              id="logout-btn"
+              class="text-sm text-black/60 hover:text-black transition"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+        
+        <div id="posts-list">
+          ${renderPostsList()}
+        </div>
+      </div>
+    `;
+  }
+
   // Main render function
   function render() {
     if (isAuthenticated) {
-      app.innerHTML = renderEditor();
-      const form = document.getElementById('publish-form');
-      const logoutBtn = document.getElementById('logout-btn');
-      if (form) form.addEventListener('submit', handlePublish);
-      if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+      if (viewMode === 'create') {
+        app.innerHTML = renderEditor();
+        const form = document.getElementById('publish-form');
+        const logoutBtn = document.getElementById('logout-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const cancelFormBtn = document.getElementById('cancel-form-btn');
+        
+        if (form) form.addEventListener('submit', handlePublish);
+        if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+        if (cancelBtn) cancelBtn.addEventListener('click', handleCancelEdit);
+        if (cancelFormBtn) cancelFormBtn.addEventListener('click', handleCancelEdit);
+      } else {
+        app.innerHTML = renderDashboard();
+        const logoutBtn = document.getElementById('logout-btn');
+        const newPostBtn = document.getElementById('new-post-btn');
+        
+        if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+        if (newPostBtn) newPostBtn.addEventListener('click', () => {
+          editingPost = null;
+          viewMode = 'create';
+          render();
+        });
+
+        // Attach event listeners to edit and delete buttons
+        document.querySelectorAll('.edit-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const path = btn.getAttribute('data-path')!;
+            const sha = btn.getAttribute('data-sha')!;
+            const post = posts.find(p => p.path === path && p.sha === sha);
+            if (post) handleEdit(post);
+          });
+        });
+
+        document.querySelectorAll('.delete-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const path = btn.getAttribute('data-path')!;
+            const sha = btn.getAttribute('data-sha')!;
+            const post = posts.find(p => p.path === path && p.sha === sha);
+            if (post) handleDelete(post);
+          });
+        });
+      }
     } else {
       app.innerHTML = renderLogin();
       const form = document.getElementById('login-form');
