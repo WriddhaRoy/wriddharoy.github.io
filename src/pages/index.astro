@@ -1,35 +1,23 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { getAllPosts, formatDate } from '../lib/blog';
-
-const posts = getAllPosts();
 ---
 
-<Layout title="Blog">
+<Layout title="Home">
   <div class="space-y-16">
-    <div>
-      <h1 class="text-4xl font-bold tracking-tight mb-4">Posts</h1>
-      <p class="text-black/60">Thoughts, stories, and ideas.</p>
+    <div class="space-y-6">
+      <h1 class="text-5xl font-bold tracking-tight">Welcome</h1>
+      <p class="text-xl text-black/70 max-w-2xl">
+        This is a minimalist blog built with Astro.
+      </p>
     </div>
 
-    {posts.length === 0 ? (
-      <div class="text-black/60 text-center py-12">
-        <p>No posts yet. Create your first post from the <a href="/admin" class="underline hover:opacity-60">admin panel</a>.</p>
-      </div>
-    ) : (
-      <div class="space-y-12">
-        {posts.map((post) => (
-          <article class="group">
-            <a href={`/blog/${post.slug}`} class="block space-y-2">
-              <time class="text-sm text-black/50">{formatDate(post.date)}</time>
-              <h2 class="text-2xl font-semibold tracking-tight group-hover:opacity-60 transition">
-                {post.title}
-              </h2>
-              <p class="text-black/70">{post.description}</p>
-            </a>
-          </article>
-        ))}
-      </div>
-    )}
+    <div class="space-y-4">
+      <a 
+        href="/blog" 
+        class="inline-block px-6 py-3 bg-black text-white rounded hover:opacity-80 transition"
+      >
+        View Blog Posts
+      </a>
+    </div>
   </div>
 </Layout>
