@@ -9,11 +9,15 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/tailwind": "^6.0.2",
     "@octokit/rest": "^22.0.1",
     "astro": "^5.16.6",
     "gray-matter": "^4.0.3",
-    "marked": "^17.0.1",
-    "tailwindcss": "^3.4.17"
+    "marked": "^17.0.1"
+  },
+  "devDependencies": {
+    "@astrojs/tailwind": "^6.0.2",
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19"
   }
 }
