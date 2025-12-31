@@ -4,9 +4,8 @@ import tailwind from '@astrojs/tailwind';
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://yourusername.github.io',
-  // Remove base for local dev, or use environment variable
-  base: process.env.NODE_ENV === 'production' ? '/wriddharoy.com' : '/',
+  site: 'https://wriddharoy.github.io',
+  // No base path needed for user GitHub Pages site (username.github.io)
   output: 'static',
   integrations: [tailwind()]
 });
