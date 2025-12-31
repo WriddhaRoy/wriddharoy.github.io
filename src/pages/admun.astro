@@ -4,6 +4,7 @@ import Layout from '../layouts/Layout.astro';
 
 <Layout title="Admin Dashboard">
   <div id="app"></div>
+  <script src="https://unpkg.com/marked@17.0.1/marked.min.js" defer></script>
 </Layout>
 
 <script>
@@ -20,9 +21,77 @@ import Layout from '../layouts/Layout.astro';
   let posts: BlogPostFile[] = [];
   let editingPost: BlogPostFile | null = null;
   let viewMode: 'create' | 'list' = 'list';
+  let activeTab: 'write' | 'preview' = 'write';
+  let markedLib: any = null;
 
   // DOM elements will be created dynamically
   const app = document.getElementById('app')!;
+
+  // Load marked library
+  async function loadMarked(): Promise<any> {
+    if (markedLib) return markedLib;
+    
+    // Check if already loaded (from script tag in head)
+    if (typeof window !== 'undefined' && (window as any).marked) {
+      markedLib = (window as any).marked;
+      return markedLib;
+    }
+    
+    // Wait for the script tag in head to load
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const maxAttempts = 50; // 5 seconds max wait
+      
+      const checkMarked = () => {
+        attempts++;
+        
+        if (typeof window !== 'undefined' && (window as any).marked) {
+          markedLib = (window as any).marked;
+          resolve(markedLib);
+          return;
+        }
+        
+        if (attempts >= maxAttempts) {
+          // Script tag didn't work, try dynamic import
+          console.log('Script tag not working, trying dynamic import...');
+          (async () => {
+            try {
+              // @ts-ignore - dynamic import from CDN
+              const module = await import('https://esm.sh/marked@17.0.1');
+              markedLib = module.marked || module.default || module;
+              if (markedLib && typeof markedLib.parse === 'function') {
+                resolve(markedLib);
+              } else {
+                resolve(null);
+              }
+            } catch {
+              // Last resort: try creating script tag manually
+              const script = document.createElement('script');
+              script.src = 'https://cdn.jsdelivr.net/npm/marked@17.0.1/marked.min.js';
+              script.onload = () => {
+                setTimeout(() => {
+                  const marked = (window as any).marked;
+                  if (marked && typeof marked.parse === 'function') {
+                    markedLib = marked;
+                    resolve(markedLib);
+                  } else {
+                    resolve(null);
+                  }
+                }, 200);
+              };
+              script.onerror = () => resolve(null);
+              document.head.appendChild(script);
+            }
+          })();
+          return;
+        }
+        
+        setTimeout(checkMarked, 100);
+      };
+      
+      checkMarked();
+    });
+  }
 
   // Load blog posts
   async function loadPosts() {
@@ -162,10 +231,82 @@ import Layout from '../layouts/Layout.astro';
     render();
   }
 
+  // Update preview function
+  async function updatePreview() {
+    const preview = document.getElementById('markdown-preview');
+    if (!preview) return;
+    
+    const textarea = document.getElementById('content-textarea') as HTMLTextAreaElement;
+    if (!textarea) return;
+    
+    const content = textarea.value;
+    
+    // Load marked if not already loaded
+    if (!markedLib) {
+      preview.innerHTML = '<p class="text-black/40 italic">Loading markdown parser...</p>';
+      markedLib = await loadMarked();
+    }
+    
+    if (!markedLib) {
+      preview.innerHTML = '<p class="text-red-600">Failed to load markdown parser. Please refresh the page.</p>';
+      return;
+    }
+    
+    if (content.trim() === '') {
+      preview.innerHTML = '<p class="text-black/40 italic">Preview will appear here as you type...</p>';
+      return;
+    }
+    
+    try {
+      preview.innerHTML = markedLib.parse(content);
+    } catch (error) {
+      preview.innerHTML = '<p class="text-red-600">Error parsing markdown</p>';
+    }
+  }
+
+  // Switch tabs
+  function switchTab(tab: 'write' | 'preview') {
+    activeTab = tab;
+    
+    // Update tab UI without re-rendering the entire form
+    const writeTab = document.getElementById('write-tab');
+    const previewTab = document.getElementById('preview-tab');
+    const writeTabContent = document.getElementById('write-tab-content');
+    const previewTabContent = document.getElementById('preview-tab-content');
+    
+    if (writeTab && previewTab && writeTabContent && previewTabContent) {
+      // Update tab button styles
+      if (tab === 'write') {
+        writeTab.className = 'px-4 py-2 text-sm font-medium border-b-2 transition border-black text-black';
+        previewTab.className = 'px-4 py-2 text-sm font-medium border-b-2 transition border-transparent text-black/60 hover:text-black';
+        writeTabContent.classList.remove('hidden');
+        writeTabContent.classList.add('block');
+        previewTabContent.classList.remove('block');
+        previewTabContent.classList.add('hidden');
+      } else {
+        writeTab.className = 'px-4 py-2 text-sm font-medium border-b-2 transition border-transparent text-black/60 hover:text-black';
+        previewTab.className = 'px-4 py-2 text-sm font-medium border-b-2 transition border-black text-black';
+        writeTabContent.classList.remove('block');
+        writeTabContent.classList.add('hidden');
+        previewTabContent.classList.remove('hidden');
+        previewTabContent.classList.add('block');
+        // Update preview when switching to preview tab
+        updatePreview();
+      }
+    } else {
+      // Fallback: re-render if elements don't exist yet
+      render();
+      if (tab === 'preview') {
+        setTimeout(updatePreview, 100);
+      }
+    }
+  }
+
   // Edit handler
   async function handleEdit(post: BlogPostFile) {
     editingPost = post;
     viewMode = 'create';
+    activeTab = 'write'; // Start with write tab
     render();
     
     // Populate form with post data
@@ -174,9 +315,12 @@ import Layout from '../layouts/Layout.astro';
       if (form) {
         (form.elements.namedItem('title') as HTMLInputElement).value = post.title;
         (form.elements.namedItem('description') as HTMLInputElement).value = post.description;
-        (form.elements.namedItem('content') as HTMLTextAreaElement).value = post.content;
+        const contentTextarea = document.getElementById('content-textarea') as HTMLTextAreaElement;
+        if (contentTextarea) {
+          contentTextarea.value = post.content;
+        }
       }
-    }, 0);
+    }, 100);
   }
 
   // Delete handler
@@ -359,13 +503,61 @@ import Layout from '../layouts/Layout.astro';
           
           <div>
             <label class="block text-sm font-medium mb-2">Content (Markdown)</label>
-            <textarea
-              name="content"
-              required
-              rows="20"
-              class="w-full px-4 py-2 border border-black/20 rounded focus:outline-none focus:ring-2 focus:ring-black/20 font-mono text-sm"
-              placeholder="Write your post content here using Markdown..."
-            ></textarea>
+            <div class="border border-black/20 rounded">
+              <!-- Tabs -->
+              <div class="flex border-b border-black/20">
+                <button
+                  type="button"
+                  id="write-tab"
+                  class="px-4 py-2 text-sm font-medium border-b-2 transition ${
+                    activeTab === 'write'
+                      ? 'border-black text-black'
+                      : 'border-transparent text-black/60 hover:text-black'
+                  }"
+                >
+                  Write
+                </button>
+                <button
+                  type="button"
+                  id="preview-tab"
+                  class="px-4 py-2 text-sm font-medium border-b-2 transition ${
+                    activeTab === 'preview'
+                      ? 'border-black text-black'
+                      : 'border-transparent text-black/60 hover:text-black'
+                  }"
+                >
+                  Preview
+                </button>
+              </div>
+              
+              <!-- Tab Content -->
+              <div class="relative">
+                <!-- Write Tab -->
+                <div id="write-tab-content" class="${activeTab === 'write' ? 'block' : 'hidden'}">
+                  <textarea
+                    id="content-textarea"
+                    name="content"
+                    required
+                    rows="20"
+                    class="w-full px-4 py-2 border-0 focus:outline-none focus:ring-0 font-mono text-sm resize-none"
+                    placeholder="Write your post content here using Markdown..."
+                  ></textarea>
+                </div>
+                
+                <!-- Preview Tab -->
+                <div
+                  id="preview-tab-content"
+                  class="${activeTab === 'preview' ? 'block' : 'hidden'} min-h-[500px]"
+                >
+                  <div
+                    id="markdown-preview"
+                    class="w-full px-4 py-2 min-h-[500px] overflow-y-auto markdown-preview"
+                  >
+                    <p class="text-black/40 italic">Preview will appear here...</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           
           <div class="flex gap-4">
@@ -440,11 +632,26 @@ import Layout from '../layouts/Layout.astro';
         const logoutBtn = document.getElementById('logout-btn');
         const cancelBtn = document.getElementById('cancel-btn');
         const cancelFormBtn = document.getElementById('cancel-form-btn');
+        const writeTab = document.getElementById('write-tab');
+        const previewTab = document.getElementById('preview-tab');
+        const contentTextarea = document.getElementById('content-textarea');
         
         if (form) form.addEventListener('submit', handlePublish);
         if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
         if (cancelBtn) cancelBtn.addEventListener('click', handleCancelEdit);
         if (cancelFormBtn) cancelFormBtn.addEventListener('click', handleCancelEdit);
+        if (writeTab) writeTab.addEventListener('click', () => switchTab('write'));
+        if (previewTab) previewTab.addEventListener('click', () => switchTab('preview'));
+        if (contentTextarea) {
+          // Update preview when typing (debounced)
+          let previewTimeout: ReturnType<typeof setTimeout>;
+          contentTextarea.addEventListener('input', () => {
+            if (activeTab === 'preview') {
+              clearTimeout(previewTimeout);
+              previewTimeout = setTimeout(updatePreview, 300);
+            }
+          });
+        }
       } else {
         app.innerHTML = renderDashboard();
         const logoutBtn = document.getElementById('logout-btn');
@@ -486,4 +693,91 @@ import Layout from '../layouts/Layout.astro';
   // Initialize
   checkAuth();
 </script>
+
+<style>
+  .markdown-preview h1 {
+    font-size: 2em;
+    font-weight: bold;
+    margin-top: 0.67em;
+    margin-bottom: 0.67em;
+  }
+  .markdown-preview h2 {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin-top: 0.83em;
+    margin-bottom: 0.83em;
+  }
+  .markdown-preview h3 {
+    font-size: 1.17em;
+    font-weight: bold;
+    margin-top: 1em;
+    margin-bottom: 1em;
+  }
+  .markdown-preview p {
+    margin-top: 1em;
+    margin-bottom: 1em;
+  }
+  .markdown-preview ul,
+  .markdown-preview ol {
+    margin-top: 1em;
+    margin-bottom: 1em;
+    padding-left: 2em;
+  }
+  .markdown-preview li {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+  }
+  .markdown-preview code {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.2em 0.4em;
+    border-radius: 0.25rem;
+    font-family: monospace;
+    font-size: 0.9em;
+  }
+  .markdown-preview pre {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 1em;
+    border-radius: 0.25rem;
+    overflow-x: auto;
+    margin-top: 1em;
+    margin-bottom: 1em;
+  }
+  .markdown-preview pre code {
+    background-color: transparent;
+    padding: 0;
+  }
+  .markdown-preview blockquote {
+    border-left: 4px solid rgba(0, 0, 0, 0.2);
+    padding-left: 1em;
+    margin-left: 0;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    color: rgba(0, 0, 0, 0.7);
+  }
+  .markdown-preview a {
+    color: #000;
+    text-decoration: underline;
+  }
+  .markdown-preview a:hover {
+    opacity: 0.6;
+  }
+  .markdown-preview img {
+    max-width: 100%;
+    height: auto;
+    margin-top: 1em;
+    margin-bottom: 1em;
+  }
+  .markdown-preview strong {
+    font-weight: bold;
+  }
+  .markdown-preview em {
+    font-style: italic;
+  }
+  .markdown-preview hr {
+    border: none;
+    border-top: 1px solid rgba(0, 0, 0, 0.2);
+    margin-top: 2em;
+    margin-bottom: 2em;
+  }
+</style>
 
