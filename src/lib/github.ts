@@ -43,11 +43,12 @@ export class GitHubAPI {
    * Generate frontmatter for the blog post
    */
   private generateFrontmatter(post: BlogPost): string {
+    // Only include description if it's provided
+    const descriptionLine = post.description ? `description: "${post.description}"` : '';
     return `---
 title: "${post.title}"
 date: "${post.date}"
-description: "${post.description}"
----
+${descriptionLine ? descriptionLine + '\n' : ''}---
 
 ${post.content}`;
   }
@@ -57,7 +58,9 @@ ${post.content}`;
    */
   async createBlogPost(post: BlogPost): Promise<void> {
     const slug = this.slugify(post.title);
-    const fileName = `${post.date}-${slug}.md`;
+    // Extract date part (YYYY-MM-DD) from ISO string for filename
+    const datePart = post.date.split('T')[0];
+    const fileName = `${datePart}-${slug}.md`;
     const filePath = `content/blog/${fileName}`;
     const content = this.generateFrontmatter(post);
     
@@ -128,9 +131,19 @@ ${post.content}`;
         }
       }
 
-      // Sort by date (newest first)
+      // Sort by date/time (newest first)
+      // Handle both date-only (YYYY-MM-DD) and datetime (ISO) formats
       return posts.sort((a, b) => {
-        return new Date(b.date).getTime() - new Date(a.date).getTime();
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        
+        // If dates are equal, sort by path (filename) as tiebreaker
+        // More recent files typically have later filenames due to slug uniqueness
+        if (dateA === dateB) {
+          return b.path.localeCompare(a.path);
+        }
+        
+        return dateB - dateA;
       });
     } catch (error) {
       console.error('Error getting blog posts:', error);

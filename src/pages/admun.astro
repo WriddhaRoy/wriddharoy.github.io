@@ -177,11 +177,11 @@ import Layout from '../layouts/Layout.astro';
     const formData = new FormData(form);
 
     const title = formData.get('title') as string;
-    const description = formData.get('description') as string;
+    const description = (formData.get('description') as string) || '';
     const content = formData.get('content') as string;
 
-    if (!title || !description || !content) {
-      alert('Please fill in all fields');
+    if (!title || !content) {
+      alert('Please fill in title and content');
       return;
     }
 
@@ -208,8 +208,8 @@ import Layout from '../layouts/Layout.astro';
         );
         alert('Post updated successfully! It will appear after GitHub Actions rebuilds the site.');
       } else {
-        // Create new post
-        const date = new Date().toISOString().split('T')[0];
+        // Create new post with full datetime for proper sorting
+        const date = new Date().toISOString();
         await githubAPI.createBlogPost({
           title,
           date,
@@ -491,7 +491,7 @@ import Layout from '../layouts/Layout.astro';
             <div class="flex justify-between items-start">
               <div class="flex-1">
                 <h3 class="font-semibold text-lg mb-1">${post.title}</h3>
-                <p class="text-sm text-black/60 mb-2">${post.description}</p>
+                ${post.description ? `<p class="text-sm text-black/60 mb-2">${post.description}</p>` : ''}
                 <p class="text-xs text-black/40">${new Date(post.date).toLocaleDateString()}</p>
               </div>
               <div class="flex gap-2 ml-4">
@@ -554,13 +554,12 @@ import Layout from '../layouts/Layout.astro';
           </div>
           
           <div>
-            <label class="block text-sm font-medium mb-2">Description</label>
+            <label class="block text-sm font-medium mb-2">Description <span class="text-black/40 font-normal">(optional)</span></label>
             <input
               type="text"
               name="description"
-              required
               class="w-full px-4 py-2 border border-black/20 rounded focus:outline-none focus:ring-2 focus:ring-black/20"
-              placeholder="A brief description of your post"
+              placeholder="A brief description of your post (optional)"
             />
           </div>
           

@@ -42,9 +42,27 @@ export function getAllPosts(): BlogPostMeta[] {
       };
     });
 
-  // Sort posts by date (newest first)
+  // Sort posts by date/time (newest first)
+  // Handle both date-only (YYYY-MM-DD) and datetime (ISO) formats
   return posts.sort((a, b) => {
-    return new Date(b.date).getTime() - new Date(a.date).getTime();
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    
+    // If dates are equal, use file modification time as tiebreaker
+    if (dateA === dateB) {
+      try {
+        const fileA = path.join(blogDirectory, `${a.slug}.md`);
+        const fileB = path.join(blogDirectory, `${b.slug}.md`);
+        const statsA = fs.statSync(fileA);
+        const statsB = fs.statSync(fileB);
+        return statsB.mtime.getTime() - statsA.mtime.getTime();
+      } catch {
+        // If file stats can't be read, maintain current order
+        return 0;
+      }
+    }
+    
+    return dateB - dateA;
   });
 }
 
