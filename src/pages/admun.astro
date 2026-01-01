@@ -23,9 +23,92 @@ import Layout from '../layouts/Layout.astro';
   let viewMode: 'create' | 'list' = 'list';
   let activeTab: 'write' | 'preview' = 'write';
   let markedLib: any = null;
+  let confirmationCallback: ((confirmed: boolean) => void) | null = null;
 
   // DOM elements will be created dynamically
   const app = document.getElementById('app')!;
+
+  // Toast notification system
+  function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
+    const toast = document.createElement('div');
+    const bgColor = type === 'success' ? 'bg-green-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600';
+    toast.className = `fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-3 min-w-[300px] max-w-[500px] animate-slide-in`;
+    toast.innerHTML = `
+      <span class="flex-1">${message}</span>
+      <button class="text-white/80 hover:text-white transition" onclick="this.parentElement.remove()">✕</button>
+    `;
+    document.body.appendChild(toast);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      if (toast.parentElement) {
+        toast.style.animation = 'slide-out 0.3s ease-out';
+        setTimeout(() => toast.remove(), 300);
+      }
+    }, 5000);
+  }
+
+  // Custom confirmation dialog
+  function showConfirm(message: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      confirmationCallback = resolve;
+      
+      const overlay = document.createElement('div');
+      overlay.className = 'fixed inset-0 bg-black/50 z-50 flex items-center justify-center';
+      overlay.id = 'confirm-overlay';
+      
+      overlay.innerHTML = `
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 animate-scale-in">
+          <div class="p-6">
+            <h3 class="text-lg font-semibold mb-4">Confirm Action</h3>
+            <p class="text-black/70 mb-6">${message}</p>
+            <div class="flex gap-3 justify-end">
+              <button
+                id="confirm-cancel"
+                class="px-4 py-2 border border-black/20 rounded hover:bg-black/5 transition"
+              >
+                Cancel
+              </button>
+              <button
+                id="confirm-ok"
+                class="px-4 py-2 bg-red-600 text-white rounded hover:opacity-80 transition"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(overlay);
+      
+      overlay.querySelector('#confirm-cancel')?.addEventListener('click', () => {
+        overlay.remove();
+        if (confirmationCallback) {
+          confirmationCallback(false);
+          confirmationCallback = null;
+        }
+      });
+      
+      overlay.querySelector('#confirm-ok')?.addEventListener('click', () => {
+        overlay.remove();
+        if (confirmationCallback) {
+          confirmationCallback(true);
+          confirmationCallback = null;
+        }
+      });
+      
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          overlay.remove();
+          if (confirmationCallback) {
+            confirmationCallback(false);
+            confirmationCallback = null;
+          }
+        }
+      });
+    });
+  }
 
   // Load marked library
   async function loadMarked(): Promise<any> {
@@ -103,7 +186,7 @@ import Layout from '../layouts/Layout.astro';
     try {
       posts = await githubAPI.getBlogPosts();
     } catch (error) {
-      alert('Error loading posts: ' + (error as Error).message);
+      showToast('Error loading posts: ' + (error as Error).message, 'error');
     }
     
     isLoading = false;
@@ -139,7 +222,7 @@ import Layout from '../layouts/Layout.astro';
     const token = formData.get('token') as string;
 
     if (!token) {
-      alert('Please enter your GitHub token');
+      showToast('Please enter your GitHub token', 'error');
       return;
     }
 
@@ -153,8 +236,9 @@ import Layout from '../layouts/Layout.astro';
       sessionStorage.setItem('github_token', token);
       isAuthenticated = true;
       loadPosts();
+      showToast('Successfully logged in!', 'success');
     } else {
-      alert('Invalid token. Please check your GitHub Personal Access Token.');
+      showToast('Invalid token. Please check your GitHub Personal Access Token.', 'error');
       githubAPI = null;
     }
 
@@ -181,12 +265,12 @@ import Layout from '../layouts/Layout.astro';
     const content = formData.get('content') as string;
 
     if (!title || !content) {
-      alert('Please fill in title and content');
+      showToast('Please fill in title and content', 'error');
       return;
     }
 
     if (!githubAPI) {
-      alert('Not authenticated');
+      showToast('Not authenticated', 'error');
       return;
     }
 
@@ -206,7 +290,7 @@ import Layout from '../layouts/Layout.astro';
           },
           editingPost.sha
         );
-        alert('Post updated successfully! It will appear after GitHub Actions rebuilds the site.');
+        showToast('Post updated successfully! It will appear after GitHub Actions rebuilds the site.', 'success');
       } else {
         // Create new post with full datetime for proper sorting
         const date = new Date().toISOString();
@@ -216,7 +300,7 @@ import Layout from '../layouts/Layout.astro';
           description,
           content,
         });
-        alert('Post published successfully! It will appear after GitHub Actions rebuilds the site.');
+        showToast('Post published successfully! It will appear after GitHub Actions rebuilds the site.', 'success');
       }
       
       form.reset();
@@ -224,7 +308,7 @@ import Layout from '../layouts/Layout.astro';
       viewMode = 'list';
       await loadPosts();
     } catch (error) {
-      alert('Error saving post: ' + (error as Error).message);
+      showToast('Error saving post: ' + (error as Error).message, 'error');
     }
 
     isLoading = false;
@@ -388,12 +472,13 @@ import Layout from '../layouts/Layout.astro';
 
   // Delete handler
   async function handleDelete(post: BlogPostFile) {
-    if (!confirm(`Are you sure you want to delete "${post.title}"? This action cannot be undone.`)) {
+    const confirmed = await showConfirm(`Are you sure you want to delete "${post.title}"? This action cannot be undone.`);
+    if (!confirmed) {
       return;
     }
 
     if (!githubAPI) {
-      alert('Not authenticated');
+      showToast('Not authenticated', 'error');
       return;
     }
 
@@ -402,10 +487,10 @@ import Layout from '../layouts/Layout.astro';
 
     try {
       await githubAPI.deleteBlogPost(post.path, post.sha);
-      alert('Post deleted successfully! It will be removed after GitHub Actions rebuilds the site.');
+      showToast('Post deleted successfully! It will be removed after GitHub Actions rebuilds the site.', 'success');
       await loadPosts();
     } catch (error) {
-      alert('Error deleting post: ' + (error as Error).message);
+      showToast('Error deleting post: ' + (error as Error).message, 'error');
     }
 
     isLoading = false;
@@ -918,6 +1003,48 @@ import Layout from '../layouts/Layout.astro';
   .markdown-preview th {
     background-color: rgba(0, 0, 0, 0.05);
     font-weight: 700;
+  }
+
+  /* Toast animations */
+  @keyframes slide-in {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes slide-out {
+    from {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    to {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+
+  @keyframes scale-in {
+    from {
+      transform: scale(0.9);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .animate-slide-in {
+    animation: slide-in 0.3s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.2s ease-out;
   }
 </style>
 
