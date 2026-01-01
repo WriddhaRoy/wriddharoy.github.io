@@ -9,20 +9,16 @@ description: "Markdown preview test"
 *Last updated: January 2026*  
 *Author: Jane Doe*
 
-<br/>
-
 ---
 
-<br/>
 
-
-Markdown is a **lightweight markup language** designed to be easy to read and easy to write. This sample blog post exists purely for *testing markdown preview functionality*, so it intentionally includes a wide variety of formatting elements. As you scroll through, you’ll encounter headings, emphasis, lists, code blocks, images, tables, and more—all in one place.
+Markdown is a **lightweight markup language** designed to be easy to read and easy to write. This sample blog post exists purely for *testing markdown preview functionality*, so it intentionally includes a wide variety of formatting elements. As you scroll through, youâll encounter headings, emphasis, lists, code blocks, images, tables, and moreâall in one place.
 
 ### Why Markdown Is So Popular
 
-One reason Markdown is widely adopted is its *simplicity*. You don’t need to remember complex tags or syntax rules. For example, you can make text **bold**, *italic*, or even ***bold and italic*** with just a few characters. This makes Markdown ideal for blogs, documentation, README files, and note-taking apps.
+One reason Markdown is widely adopted is its *simplicity*. You donât need to remember complex tags or syntax rules. For example, you can make text **bold**, *italic*, or even ***bold and italic*** with just a few characters. This makes Markdown ideal for blogs, documentation, README files, and note-taking apps.
 
-Another advantage is portability. Markdown files are plain text, meaning they work across operating systems and editors. You can write Markdown in VS Code, Vim, Notepad, or even directly on platforms like GitHub, GitLab, and many CMS tools. If you’re curious, you can read more about Markdown on the [official website](https://daringfireball.net/projects/markdown/).
+Another advantage is portability. Markdown files are plain text, meaning they work across operating systems and editors. You can write Markdown in VS Code, Vim, Notepad, or even directly on platforms like GitHub, GitLab, and many CMS tools. If youâre curious, you can read more about Markdown on the [official website](https://daringfireball.net/projects/markdown/).
 
 ### Images and Media
 
