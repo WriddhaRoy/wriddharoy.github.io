@@ -1,5 +1,5 @@
 ---
-title: "Lorem ipsum"
+title: "Hi there"
 date: "2025-12-31"
 description: "Lorem ipsum text for testing purpose"
 ---
