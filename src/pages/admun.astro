@@ -571,19 +571,27 @@ import Layout from '../layouts/Layout.astro';
 
     return `
       <div class="space-y-4">
-        ${posts.map(post => `
-          <div class="border border-black/20 rounded p-4 hover:bg-black/5 transition">
+        ${posts.map(post => {
+          // Extract slug from path: content/blog/2024-01-01-slug.md -> 2024-01-01-slug
+          const slug = post.path.replace('content/blog/', '').replace('.md', '');
+          return `
+          <div class="border border-black/20 rounded p-4 hover:bg-black/5 transition relative">
             <div class="flex justify-between items-start">
-              <div class="flex-1">
+              <a 
+                href="/blog/${slug}" 
+                target="_blank"
+                class="flex-1 block hover:opacity-80 transition cursor-pointer pr-4"
+              >
                 <h3 class="font-semibold text-lg mb-1">${post.title}</h3>
                 ${post.description ? `<p class="text-sm text-black/60 mb-2">${post.description}</p>` : ''}
                 <p class="text-xs text-black/40">${new Date(post.date).toLocaleDateString()}</p>
-              </div>
-              <div class="flex gap-2 ml-4">
+              </a>
+              <div class="flex gap-2 ml-4 relative z-10">
                 <button
                   class="edit-btn px-4 py-2 bg-black text-white text-sm rounded hover:opacity-80 transition"
                   data-path="${post.path}"
                   data-sha="${post.sha}"
+                  onclick="event.stopPropagation()"
                 >
                   Edit
                 </button>
@@ -591,13 +599,15 @@ import Layout from '../layouts/Layout.astro';
                   class="delete-btn px-4 py-2 bg-red-600 text-white text-sm rounded hover:opacity-80 transition"
                   data-path="${post.path}"
                   data-sha="${post.sha}"
+                  onclick="event.stopPropagation()"
                 >
                   Delete
                 </button>
               </div>
             </div>
           </div>
-        `).join('')}
+        `;
+        }).join('')}
       </div>
     `;
   }
