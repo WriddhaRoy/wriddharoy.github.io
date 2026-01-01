@@ -1,7 +1,7 @@
 ---
-title: "Lorem ipsum title"
+title: "Lorem ipsum"
 date: "2025-12-31"
-description: "Lorem ipsum description"
+description: "Lorem ipsum text for testing purpose"
 ---
 
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec ac elementum lectus, vitae accumsan justo. In eu nibh et magna euismod egestas et a magna. Aliquam erat volutpat. Maecenas in sapien lorem. Curabitur ac mauris gravida, dignissim arcu a, sagittis mauris. Integer feugiat magna quis nisi feugiat gravida. Phasellus ornare blandit nisi varius commodo. Sed pharetra rutrum lacus sit amet ornare. Integer ac sollicitudin orci. Nulla vulputate neque ac orci suscipit, sed iaculis tortor accumsan. Suspendisse vestibulum efficitur mauris, id facilisis tellus elementum in. Vivamus molestie sapien ac erat tempor fermentum. Donec hendrerit, massa ut luctus commodo, augue dui tempus libero, non pulvinar est ipsum consectetur ex. Vivamus in rutrum nisi. Aliquam erat volutpat.
